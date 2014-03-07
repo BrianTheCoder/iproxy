@@ -13,8 +13,10 @@ zlib = require 'zlib'
 
 app = express()
 
-memcached = new Memcached 'localhost:11211'
-
+memcached = new Memcached process.env.CACHE_SERVER || '127.0.0.1:11211',
+  namespace: 'dstld:proxy'
+  compressionThreshold: 10
+  debug: true
 
 # all environments
 app.set 'port', process.env.PORT || 5555
@@ -46,11 +48,13 @@ app.get '/', (req, res)->
         request
           uri: url
         , (err, resp, body)->
-          dataUri = new Buffer(body).toString('base64')
-          memcached.set digest, dataUri, 3600
+          zlib.gzip body, (err, buff)->
+            dataUri = new Buffer(buff).toString('base64')
+            memcached.set digest, dataUri, 10000, (err, result)->
+              if err then console.error err
 
-          data[digest] = dataUri
-          done(data)
+            data[digest] = dataUri
+            done(data)
       else
         done(data)
 

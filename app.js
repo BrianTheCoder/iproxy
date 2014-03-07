@@ -20,7 +20,11 @@
 
   app = express();
 
-  memcached = new Memcached('localhost:11211');
+  memcached = new Memcached(process.env.CACHE_SERVER || '127.0.0.1:11211', {
+    namespace: 'dstld:proxy',
+    compressionThreshold: 10,
+    debug: true
+  });
 
   app.set('port', process.env.PORT || 5555);
 
@@ -59,11 +63,17 @@
           return request({
             uri: url
           }, function(err, resp, body) {
-            var dataUri;
-            dataUri = new Buffer(body).toString('base64');
-            memcached.set(digest, dataUri, 3600);
-            data[digest] = dataUri;
-            return done(data);
+            return zlib.gzip(body, function(err, buff) {
+              var dataUri;
+              dataUri = new Buffer(buff).toString('base64');
+              memcached.set(digest, dataUri, 10000, function(err, result) {
+                if (err) {
+                  return console.error(err);
+                }
+              });
+              data[digest] = dataUri;
+              return done(data);
+            });
           });
         } else {
           return done(data);
