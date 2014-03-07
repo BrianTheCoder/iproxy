@@ -4,19 +4,16 @@
 
 express = require 'express'
 http = require 'http'
-path = require 'path'
 Memcached = require 'memcached'
 crypto = require 'crypto'
 request = require 'request'
 _ = require 'underscore'
-zlib = require 'zlib'
 
 app = express()
 
 memcached = new Memcached process.env.CACHE_SERVER || '127.0.0.1:11211',
   namespace: 'dstld:proxy'
   compressionThreshold: 10
-  debug: true
 
 # all environments
 app.set 'port', process.env.PORT || 5555
@@ -47,14 +44,13 @@ app.get '/', (req, res)->
       if !data[digest]
         request
           uri: url
+          encoding: null
         , (err, resp, body)->
-          zlib.gzip body, (err, buff)->
-            dataUri = new Buffer(buff).toString('base64')
-            memcached.set digest, dataUri, 10000, (err, result)->
-              if err then console.error err
-
-            data[digest] = dataUri
-            done(data)
+          dataUri = body.toString('base64')
+          memcached.set digest, dataUri, 10000, (err, result)->
+            if err then console.error err
+          data[digest] = dataUri
+          done(data)
       else
         done(data)
 
